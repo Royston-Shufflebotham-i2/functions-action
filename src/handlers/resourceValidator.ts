@@ -35,7 +35,11 @@ export class ResourceValidator implements IOrchestratable {
     private _kuduService: Kudu;
     private _kuduServiceUtil: KuduServiceUtility;
 
-    public async invoke(state: StateConstant, params: IActionParameters, context: IActionContext): Promise<StateConstant> {
+    public async invoke(
+        state: StateConstant,
+        params: IActionParameters,
+        context: IActionContext
+    ): Promise<StateConstant> {
         if (context.authenticationType == AuthenticationType.Rbac) {
             Logger.Info('Using RBAC for authentication, GitHub Action will perform resource validation.');
             await this.getDetailsByRbac(state, params);
@@ -47,7 +51,11 @@ export class ResourceValidator implements IOrchestratable {
         return StateConstant.PreparePublishContent;
     }
 
-    public async changeContext(state: StateConstant, _1: IActionParameters, context: IActionContext): Promise<IActionContext> {
+    public async changeContext(
+        state: StateConstant,
+        _1: IActionParameters,
+        context: IActionContext
+    ): Promise<IActionContext> {
         context.isLinux = this._isLinux;
         context.kind = this._kind;
         context.resourceGroupName = this._resourceGroupName;
@@ -84,8 +92,10 @@ export class ResourceValidator implements IOrchestratable {
 
     private async getDetailsByScm(state: StateConstant, context: IActionContext) {
         const scm: IScmCredentials = context.scmCredentials;
+        Logger.Info('getDetailsByScm0');
         this._kuduService = new Kudu(scm.uri, scm.username, scm.password);
         this._kuduServiceUtil = new KuduServiceUtility(this._kuduService);
+        Logger.Info('getDetailsByScm1');
         this._appSettings = await this.getFunctionappSettingsScm(state, this._kuduService);
         this._appUrl = scm.appUrl;
         this._isLinux = null;
@@ -94,11 +104,11 @@ export class ResourceValidator implements IOrchestratable {
     private async getResourceDetails(state: StateConstant, endpoint: IAuthorizer, appName: string) {
         const appDetails = await AzureResourceFilterUtility.getAppDetails(endpoint, appName);
         if (appDetails === undefined) {
-            throw new ValidationError(state, ConfigurationConstant.ParamInAppName, "function app should exist");
+            throw new ValidationError(state, ConfigurationConstant.ParamInAppName, 'function app should exist');
         }
 
-        this._resourceGroupName = appDetails["resourceGroupName"];
-        this._kind = appDetails["kind"];
+        this._resourceGroupName = appDetails['resourceGroupName'];
+        this._kind = appDetails['kind'];
         this._isLinux = this._kind.indexOf('linux') >= 0;
     }
 
@@ -135,19 +145,23 @@ export class ResourceValidator implements IOrchestratable {
     }
 
     private async getFunctionappSettingsRbac(state: StateConstant, appService: AzureAppService): Promise<IAppSettings> {
+        Logger.Info('getFunctionappSettingsRbac');
         let appSettings: any;
         try {
             appSettings = await appService.getApplicationSettings(true);
         } catch (expt) {
             throw new AzureResourceError(
-                state, 'Get Function App Settings',
-                'Failed to acquire app settings from Azure Resource Manager (RBAC credential).', expt
+                state,
+                'Get Function App Settings',
+                'Failed to acquire app settings from Azure Resource Manager (RBAC credential).',
+                expt
             );
         }
 
         if (appSettings === undefined || appSettings.properties === undefined) {
             throw new AzureResourceError(
-                state, 'Get Function App Settings',
+                state,
+                'Get Function App Settings',
                 'Function app settings should not be empty (fetched from Azure Resource Manager with RBAC credential).'
             );
         }
@@ -155,9 +169,9 @@ export class ResourceValidator implements IOrchestratable {
         if (!appSettings.properties['AzureWebJobsStorage']) {
             Logger.Warn(
                 'AzureWebJobsStorage does not exist in app settings (from Azure Resource Manager with RBAC credential). ' +
-                'Please ensure the AzureWebJobsStorage app setting is configured as it is critical for function runtime. ' +
-                'For more information, please visit the function app settings reference page: ' +
-                'https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings#azurewebjobsstorage'
+                    'Please ensure the AzureWebJobsStorage app setting is configured as it is critical for function runtime. ' +
+                    'For more information, please visit the function app settings reference page: ' +
+                    'https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings#azurewebjobsstorage'
             );
         } else {
             console.log(`::add-mask::${appSettings.properties['AzureWebJobsStorage']}`);
@@ -174,35 +188,48 @@ export class ResourceValidator implements IOrchestratable {
             ENABLE_ORYX_BUILD: appSettings.properties['ENABLE_ORYX_BUILD'],
             SCM_DO_BUILD_DURING_DEPLOYMENT: appSettings.properties['SCM_DO_BUILD_DURING_DEPLOYMENT'],
             WEBSITE_RUN_FROM_PACKAGE: appSettings.properties['WEBSITE_RUN_FROM_PACKAGE'],
-            SCM_RUN_FROM_PACKAGE: appSettings.properties['SCM_RUN_FROM_PACKAGE']
+            SCM_RUN_FROM_PACKAGE: appSettings.properties['SCM_RUN_FROM_PACKAGE'],
         };
         return result;
     }
 
     private async getFunctionappSettingsScm(state: StateConstant, kuduService: Kudu): Promise<IAppSettings> {
+        Logger.Info('getFunctionappSettingsScm');
+
         let appSettings: any;
         try {
+            Logger.Info('getFunctionappSettingsScm.X1');
             appSettings = await kuduService.getAppSettings();
+            Logger.Info('getFunctionappSettingsScm.X2');
         } catch (expt) {
+            Logger.Info('getFunctionappSettingsScm.E1');
+
             throw new AzureResourceError(
-                state, 'Get Function App Settings',
-                'Failed to acquire app settings from https://<scmsite>/api/settings with publish-profile', expt
+                state,
+                'Get Function App Settings',
+                'Failed to acquire app settings from https://<scmsite>/api/settings with publish-profile',
+                expt
             );
         }
 
+        Logger.Info('getFunctionappSettingsScm.Y1');
+
         if (appSettings === undefined) {
             throw new AzureResourceError(
-                state, 'Get Function App Settings',
+                state,
+                'Get Function App Settings',
                 'Function app settings should not be empty (fetched from Kudu SCM site with publish-profile credential).'
             );
         }
 
+        Logger.Info('getFunctionappSettingsScm.Y2');
+
         if (!appSettings['AzureWebJobsStorage']) {
             Logger.Warn(
                 'AzureWebJobsStorage does not exist in app settings (from Kudu SCM site with publish-profile credential). ' +
-                'Please ensure the AzureWebJobsStorage app setting is configured as it is critical for function runtime. ' +
-                'For more information, please visit the function app settings reference page: ' +
-                'https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings#azurewebjobsstorage'
+                    'Please ensure the AzureWebJobsStorage app setting is configured as it is critical for function runtime. ' +
+                    'For more information, please visit the function app settings reference page: ' +
+                    'https://docs.microsoft.com/en-us/azure/azure-functions/functions-app-settings#azurewebjobsstorage'
             );
         } else {
             console.log(`::add-mask::${appSettings['AzureWebJobsStorage']}`);
@@ -219,9 +246,9 @@ export class ResourceValidator implements IOrchestratable {
             ENABLE_ORYX_BUILD: appSettings['ENABLE_ORYX_BUILD'],
             SCM_DO_BUILD_DURING_DEPLOYMENT: appSettings['SCM_DO_BUILD_DURING_DEPLOYMENT'],
             WEBSITE_RUN_FROM_PACKAGE: appSettings['WEBSITE_RUN_FROM_PACKAGE'],
-            SCM_RUN_FROM_PACKAGE: appSettings['SCM_RUN_FROM_PACKAGE']
+            SCM_RUN_FROM_PACKAGE: appSettings['SCM_RUN_FROM_PACKAGE'],
         };
-        return result
+        return result;
     }
 
     private getFunctionappLanguage(appSettings: IAppSettings): FunctionRuntimeConstant {
@@ -249,8 +276,11 @@ export class ResourceValidator implements IOrchestratable {
         // Windows Python is not supported
         if (context.os === RuntimeStackConstant.Windows) {
             if (context.language === FunctionRuntimeConstant.Python) {
-                throw new ValidationError(state, 'Function Runtime',
-                    "Python Function App on Windows is not yet supported");
+                throw new ValidationError(
+                    state,
+                    'Function Runtime',
+                    'Python Function App on Windows is not yet supported'
+                );
             }
         }
     }
